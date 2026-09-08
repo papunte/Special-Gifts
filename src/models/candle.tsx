@@ -83,7 +83,7 @@ const fragmentShader = `
 `;
 
 export function Candle({ children, isLit = true, ...groupProps }: CandleProps) {
-  const gltf = useLoader(GLTFLoader, "/candle.glb");
+  const gltf = useLoader(GLTFLoader, "/models/candle.glb");
   const candleScene = useMemo<Group | null>(() => gltf.scene?.clone(true) ?? null, [gltf.scene]);
   const lightRef = useRef<PointLight>(null);
   const flameMeshRef = useRef<Mesh>(null);
@@ -168,7 +168,7 @@ export function Candle({ children, isLit = true, ...groupProps }: CandleProps) {
       <mesh ref={flameMeshRef} scale={0.4} position={[0, 2.9, 0]} material={flameMaterial}>
         <sphereGeometry args={[0.5, 32, 32]} />
       </mesh>
-      <pointLight ref={lightRef} distance={5} color="#ffffffff" decay={1} />
+      <pointLight ref={lightRef} distance={5} color="#ffffff" decay={1} />
       {children}
     </group>
   );

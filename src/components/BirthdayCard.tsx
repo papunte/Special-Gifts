@@ -28,8 +28,8 @@ type BirthdayCardProps = {
 };
 
 const CARD_SCALE = 0.25;
-const CARD_WIDTH = 4 * CARD_SCALE;
-const CARD_HEIGHT = 3 * CARD_SCALE;
+const CARD_WIDTH = 6 * CARD_SCALE;
+const CARD_HEIGHT = 5 * CARD_SCALE;
 const CAMERA_DISTANCE = 1.2;
 const CAMERA_Y_FLOOR = 0.8;
 const HOVER_LIFT = 0.04;
@@ -162,22 +162,12 @@ export function BirthdayCard({
           <planeGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
           <meshStandardMaterial
             map={texture}
-            roughness={0.35}
+            transparent={true}
+            alphaTest={0.02}
+            roughness={0.3}
             metalness={0.05}
             toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0, 0, -0.001]} rotation={[0, Math.PI, 0]}>
-          <planeGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-          <meshStandardMaterial color="#f7f2ff" />
-        </mesh>
-        <mesh position={[0, 0, -0.0008]}>
-          <planeGeometry args={[CARD_WIDTH * 0.98, CARD_HEIGHT * 0.98]} />
-          <meshStandardMaterial
-            color="#ffffff"
             side={DoubleSide}
-            roughness={1}
-            metalness={0}
           />
         </mesh>
         {children}

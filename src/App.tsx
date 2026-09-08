@@ -1,317 +1,44 @@
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
 import {
   Suspense,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import type { Group } from "three";
 import { Vector3 } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { Candle } from "./models/candle";
-import { Cake } from "./models/cake";
-import { Table } from "./models/table";
-import { PictureFrame } from "./models/pictureFrame";
 import { Fireworks } from "./components/Fireworks";
-import { BirthdayCard } from "./components/BirthdayCard";
-
+import type { BirthdayCardConfig } from "./components/AnimatedScene";
+import { AnimatedScene } from "./components/AnimatedScene";
+import { AccessGatePage } from "./components/AccessGatePage";
+import { ScrollTriggerSequence } from "./components/ScrollTriggerSequence";
+import { LauncherBalloons } from "./components/LauncherBalloons";
+import { Volume2, VolumeX, RotateCcw, Sparkles } from "lucide-react";
 import "./App.css";
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
-
-const lerp = (from: number, to: number, t: number) => from + (to - from) * t;
-
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-
-type AnimatedSceneProps = {
-  isPlaying: boolean;
-  onBackgroundFadeChange?: (opacity: number) => void;
-  onEnvironmentProgressChange?: (progress: number) => void;
-  candleLit: boolean;
-  onAnimationComplete?: () => void;
-  cards: ReadonlyArray<BirthdayCardConfig>;
-  activeCardId: string | null;
-  onToggleCard: (id: string) => void;
-};
-
-const CAKE_START_Y = 10;
-const CAKE_END_Y = 0;
-const CAKE_DESCENT_DURATION = 3;
-
-const TABLE_START_Z = 30;
-const TABLE_END_Z = 0;
-const TABLE_SLIDE_DURATION = 0.7;
-const TABLE_SLIDE_START = CAKE_DESCENT_DURATION - TABLE_SLIDE_DURATION - 0.1;
-
-const CANDLE_START_Y = 5;
-const CANDLE_END_Y = 0;
-const CANDLE_DROP_DURATION = 1.2;
-const CANDLE_DROP_START =
-  Math.max(CAKE_DESCENT_DURATION, TABLE_SLIDE_START + TABLE_SLIDE_DURATION) +
-  1.0;
-
-const totalAnimationTime = CANDLE_DROP_START + CANDLE_DROP_DURATION;
+type Phase = "gate" | "scroll" | "3d";
 
 const ORBIT_TARGET = new Vector3(0, 1, 0);
-const ORBIT_INITIAL_RADIUS = 3;
-const ORBIT_INITIAL_HEIGHT = 1;
-const ORBIT_INITIAL_AZIMUTH = Math.PI / 2;
-const ORBIT_MIN_DISTANCE = 2;
+const ORBIT_INITIAL_RADIUS = 3.2;
+const ORBIT_INITIAL_HEIGHT = 1.1;
+const ORBIT_INITIAL_AZIMUTH = Math.PI / 2.2;
+const ORBIT_MIN_DISTANCE = 1.8;
 const ORBIT_MAX_DISTANCE = 8;
-const ORBIT_MIN_POLAR = Math.PI * 0;
-const ORBIT_MAX_POLAR = Math.PI / 2;
-
-const BACKGROUND_FADE_DURATION = 1;
-const BACKGROUND_FADE_OFFSET = 0;
-const BACKGROUND_FADE_END = Math.max(
-  CANDLE_DROP_START - BACKGROUND_FADE_OFFSET,
-  BACKGROUND_FADE_DURATION
-);
-const BACKGROUND_FADE_START = Math.max(
-  BACKGROUND_FADE_END - BACKGROUND_FADE_DURATION,
-  0
-);
-
-const TYPED_LINES = [
-  "> tina",
-  "...",
-  "> today is your birthday",
-  "...",
-  "> so i made you this computer program",
-  "...",
-  "٩(◕‿◕)۶ ٩(◕‿◕)۶ ٩(◕‿◕)۶"
-];
-const TYPED_CHAR_DELAY = 100;
-const POST_TYPING_SCENE_DELAY = 1000;
-const CURSOR_BLINK_INTERVAL = 480;
-
-type BirthdayCardConfig = {
-  id: string;
-  image: string;
-  position: [number, number, number];
-  rotation: [number, number, number];
-};
+const ORBIT_MIN_POLAR = Math.PI * 0.05;
+const ORBIT_MAX_POLAR = Math.PI / 2.05;
 
 const BIRTHDAY_CARDS: ReadonlyArray<BirthdayCardConfig> = [
   {
     id: "confetti",
-    image: "/card.png",
-    position: [1, 0.081, -2],
-    rotation: [-Math.PI / 2 , 0, Math.PI / 3],
-  }
+    image: "/assets/cards.png",
+    position: [1.1, 0.081, -1.8],
+    rotation: [-Math.PI / 2, 0, Math.PI / 3],
+  },
 ];
 
-function AnimatedScene({
-  isPlaying,
-  onBackgroundFadeChange,
-  onEnvironmentProgressChange,
-  candleLit,
-  onAnimationComplete,
-  cards,
-  activeCardId,
-  onToggleCard,
-}: AnimatedSceneProps) {
-  const cakeGroup = useRef<Group>(null);
-  const tableGroup = useRef<Group>(null);
-  const candleGroup = useRef<Group>(null);
-  const animationStartRef = useRef<number | null>(null);
-  const hasPrimedRef = useRef(false);
-  const hasCompletedRef = useRef(false);
-  const completionNotifiedRef = useRef(false);
-  const backgroundOpacityRef = useRef(1);
-  const environmentProgressRef = useRef(0);
-
-  useEffect(() => {
-    onBackgroundFadeChange?.(backgroundOpacityRef.current);
-    onEnvironmentProgressChange?.(environmentProgressRef.current);
-  }, [onBackgroundFadeChange, onEnvironmentProgressChange]);
-
-  const emitBackgroundOpacity = (value: number) => {
-    const clamped = clamp(value, 0, 1);
-    if (Math.abs(clamped - backgroundOpacityRef.current) > 0.005) {
-      backgroundOpacityRef.current = clamped;
-      onBackgroundFadeChange?.(clamped);
-    }
-  };
-
-  const emitEnvironmentProgress = (value: number) => {
-    const clamped = clamp(value, 0, 1);
-    if (Math.abs(clamped - environmentProgressRef.current) > 0.005) {
-      environmentProgressRef.current = clamped;
-      onEnvironmentProgressChange?.(clamped);
-    }
-  };
-
-  useFrame(({ clock }) => {
-    const cake = cakeGroup.current;
-    const table = tableGroup.current;
-    const candle = candleGroup.current;
-
-    if (!cake || !table || !candle) {
-      return;
-    }
-
-    if (!hasPrimedRef.current) {
-      cake.position.set(0, CAKE_START_Y, 0);
-      cake.rotation.set(0, 0, 0);
-      table.position.set(0, 0, TABLE_START_Z);
-      table.rotation.set(0, 0, 0);
-      candle.position.set(0, CANDLE_START_Y, 0);
-      candle.visible = false;
-      hasPrimedRef.current = true;
-    }
-
-    if (!isPlaying) {
-      emitBackgroundOpacity(1);
-      emitEnvironmentProgress(0);
-      animationStartRef.current = null;
-      hasCompletedRef.current = false;
-      completionNotifiedRef.current = false;
-      return;
-    }
-
-    if (hasCompletedRef.current) {
-      emitBackgroundOpacity(0);
-      emitEnvironmentProgress(1);
-      if (!completionNotifiedRef.current) {
-        completionNotifiedRef.current = true;
-        onAnimationComplete?.();
-      }
-      return;
-    }
-
-    if (animationStartRef.current === null) {
-      animationStartRef.current = clock.elapsedTime;
-    }
-
-    const elapsed = clock.elapsedTime - animationStartRef.current;
-    const clampedElapsed = clamp(elapsed, 0, totalAnimationTime);
-
-    const cakeProgress = clamp(clampedElapsed / CAKE_DESCENT_DURATION, 0, 1);
-    const cakeEase = easeOutCubic(cakeProgress);
-    cake.position.y = lerp(CAKE_START_Y, CAKE_END_Y, cakeEase);
-    cake.position.x = 0;
-    cake.position.z = 0;
-    cake.rotation.y = cakeEase * Math.PI * 2;
-    cake.rotation.x = 0;
-    cake.rotation.z = 0;
-
-    let tableZ = TABLE_START_Z;
-    if (clampedElapsed >= TABLE_SLIDE_START) {
-      const tableProgress = clamp(
-        (clampedElapsed - TABLE_SLIDE_START) / TABLE_SLIDE_DURATION,
-        0,
-        1
-      );
-      const tableEase = easeOutCubic(tableProgress);
-      tableZ = lerp(TABLE_START_Z, TABLE_END_Z, tableEase);
-    }
-    table.position.set(0, 0, tableZ);
-    table.rotation.set(0, 0, 0);
-
-    if (clampedElapsed >= CANDLE_DROP_START) {
-      if (!candle.visible) {
-        candle.visible = true;
-      }
-      const candleProgress = clamp(
-        (clampedElapsed - CANDLE_DROP_START) / CANDLE_DROP_DURATION,
-        0,
-        1
-      );
-      const candleEase = easeOutCubic(candleProgress);
-      candle.position.y = lerp(CANDLE_START_Y, CANDLE_END_Y, candleEase);
-    } else {
-      candle.visible = false;
-      candle.position.set(0, CANDLE_START_Y, 0);
-    }
-
-    if (clampedElapsed < BACKGROUND_FADE_START) {
-      emitBackgroundOpacity(1);
-      emitEnvironmentProgress(0);
-    } else {
-      const fadeProgress = clamp(
-        (clampedElapsed - BACKGROUND_FADE_START) / BACKGROUND_FADE_DURATION,
-        0,
-        1
-      );
-      const eased = easeOutCubic(fadeProgress);
-      const backgroundOpacity = 1 - eased;
-      emitBackgroundOpacity(backgroundOpacity);
-      emitEnvironmentProgress(1 - backgroundOpacity);
-    }
-
-    const animationDone = clampedElapsed >= totalAnimationTime;
-    if (animationDone) {
-      cake.position.set(0, CAKE_END_Y, 0);
-      cake.rotation.set(0, 0, 0);
-      table.position.set(0, 0, TABLE_END_Z);
-      candle.position.set(0, CANDLE_END_Y, 0);
-      candle.visible = true;
-      emitBackgroundOpacity(0);
-      emitEnvironmentProgress(1);
-      hasCompletedRef.current = true;
-      if (!completionNotifiedRef.current) {
-        completionNotifiedRef.current = true;
-        onAnimationComplete?.();
-      }
-    }
-  });
-
-  return (
-    <>
-      <group ref={tableGroup}>
-        <Table />
-        <PictureFrame
-          image="/frame2.jpg"
-          position={[0, 0.735, 3]}
-          rotation={[0, 5.6, 0]}
-          scale={0.75}
-        />
-        <PictureFrame
-          image="/frame3.jpg"
-          position={[0, 0.735, -3]}
-          rotation={[0, 4.0, 0]}
-          scale={0.75}
-        />
-        <PictureFrame
-          image="/frame4.jpg"
-          position={[-1.5, 0.735, 2.5]}
-          rotation={[0, 5.4, 0]}
-          scale={0.75}
-        />
-        <PictureFrame
-          image="/frame1.jpg"
-          position={[-1.5, 0.735, -2.5]}
-          rotation={[0, 4.2, 0]}
-          scale={0.75}
-        />
-        {cards.map((card) => (
-          <BirthdayCard
-            key={card.id}
-            id={card.id}
-            image={card.image}
-            tablePosition={card.position}
-            tableRotation={card.rotation}
-            isActive={activeCardId === card.id}
-            onToggle={onToggleCard}
-          />
-        ))}
-      </group>
-      <group ref={cakeGroup}>
-        <Cake />
-      </group>
-      <group ref={candleGroup}>
-        <Candle isLit={candleLit} scale={0.25} position={[0, 1.1, 0]} />
-      </group>
-    </>
-  );
-}
-
-function ConfiguredOrbitControls() {
+function ConfiguredOrbitControls({ enabled = true }: { enabled?: boolean }) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const camera = useThree((state) => state.camera);
 
@@ -335,6 +62,7 @@ function ConfiguredOrbitControls() {
   return (
     <OrbitControls
       ref={controlsRef}
+      enabled={enabled}
       enableDamping
       dampingFactor={0.05}
       minDistance={ORBIT_MIN_DISTANCE}
@@ -356,7 +84,6 @@ function EnvironmentBackgroundController({
 
   useEffect(() => {
     if ("backgroundIntensity" in scene) {
-      // Cast required because older typings might not include backgroundIntensity yet.
       (scene as typeof scene & { backgroundIntensity: number }).backgroundIntensity =
         intensity;
     }
@@ -365,26 +92,26 @@ function EnvironmentBackgroundController({
   return null;
 }
 
-
 export default function App() {
-  const [hasStarted, setHasStarted] = useState(false);
-  const [backgroundOpacity, setBackgroundOpacity] = useState(1);
+  const [currentPhase, setCurrentPhase] = useState<Phase>("gate");
+  const [isBoxOpened, setIsBoxOpened] = useState(false);
   const [environmentProgress, setEnvironmentProgress] = useState(0);
-  const [currentLineIndex, setCurrentLineIndex] = useState(0);
-  const [currentCharIndex, setCurrentCharIndex] = useState(0);
-  const [sceneStarted, setSceneStarted] = useState(false);
-  const [cursorVisible, setCursorVisible] = useState(true);
   const [hasAnimationCompleted, setHasAnimationCompleted] = useState(false);
   const [isCandleLit, setIsCandleLit] = useState(true);
   const [fireworksActive, setFireworksActive] = useState(false);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+
   const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Audio setup
   useEffect(() => {
-    const audio = new Audio("/music.mp3");
+    const audio = new Audio("/assets/palace.mp3");
     audio.loop = true;
+    audio.volume = 0.6;
     audio.preload = "auto";
     backgroundAudioRef.current = audio;
+
     return () => {
       audio.pause();
       backgroundAudioRef.current = null;
@@ -393,187 +120,187 @@ export default function App() {
 
   const playBackgroundMusic = useCallback(() => {
     const audio = backgroundAudioRef.current;
-    if (!audio) {
-      return;
+    if (!audio) return;
+    audio.muted = isMuted;
+    if (audio.paused) {
+      void audio.play().catch(() => {
+        // Autoplay policy fallback
+      });
     }
-    if (!audio.paused) {
-      return;
-    }
-    audio.currentTime = 0;
-    void audio.play().catch(() => {
-      // ignore play errors (browser might block)
+  }, [isMuted]);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (backgroundAudioRef.current) {
+        backgroundAudioRef.current.muted = next;
+      }
+      return next;
     });
   }, []);
 
-  const typingComplete = currentLineIndex >= TYPED_LINES.length;
-  const typedLines = useMemo(() => {
-    if (TYPED_LINES.length === 0) {
-      return [""];
-    }
+  // Handler when "Open The Box" is clicked on Gate page
+  const handleBoxOpen = useCallback(() => {
+    setIsBoxOpened(true);
+    setCurrentPhase("scroll");
+    playBackgroundMusic();
+  }, [playBackgroundMusic]);
 
-    return TYPED_LINES.map((line, index) => {
-      if (typingComplete || index < currentLineIndex) {
-        return line;
-      }
-      if (index === currentLineIndex) {
-        return line.slice(0, Math.min(currentCharIndex, line.length));
-      }
-      return "";
-    });
-  }, [currentCharIndex, currentLineIndex, typingComplete]);
-
-  const cursorLineIndex = typingComplete
-    ? Math.max(typedLines.length - 1, 0)
-    : currentLineIndex;
-  const cursorTargetIndex = Math.max(
-    Math.min(cursorLineIndex, typedLines.length - 1),
-    0
-  );
-
-  useEffect(() => {
-    if (!hasStarted) {
-      setCurrentLineIndex(0);
-      setCurrentCharIndex(0);
-      setSceneStarted(false);
-      setIsCandleLit(true);
-      setFireworksActive(false);
-      setHasAnimationCompleted(false);
-      return;
-    }
-
-    if (typingComplete) {
-      if (!sceneStarted) {
-        const handle = window.setTimeout(() => {
-          setSceneStarted(true);
-        }, POST_TYPING_SCENE_DELAY);
-        return () => window.clearTimeout(handle);
-      }
-      return;
-    }
-
-    const currentLine = TYPED_LINES[currentLineIndex] ?? "";
-    const handle = window.setTimeout(() => {
-      if (currentCharIndex < currentLine.length) {
-        setCurrentCharIndex((prev) => prev + 1);
-        return;
-      }
-
-      let nextLineIndex = currentLineIndex + 1;
-      while (
-        nextLineIndex < TYPED_LINES.length &&
-        TYPED_LINES[nextLineIndex].length === 0
-      ) {
-        nextLineIndex += 1;
-      }
-
-      setCurrentLineIndex(nextLineIndex);
-      setCurrentCharIndex(0);
-    }, TYPED_CHAR_DELAY);
-
-    return () => window.clearTimeout(handle);
-  }, [
-    hasStarted,
-    currentCharIndex,
-    currentLineIndex,
-    typingComplete,
-    sceneStarted,
-  ]);
-
-  useEffect(() => {
-    const handle = window.setInterval(() => {
-      setCursorVisible((prev) => !prev);
-    }, CURSOR_BLINK_INTERVAL);
-    return () => window.clearInterval(handle);
+  // Handler when frame sequence unboxing completes
+  const handleSequenceComplete = useCallback(() => {
+    setCurrentPhase("3d");
   }, []);
 
+  // Blow candle action
+  const blowOutCandle = useCallback(() => {
+    if (hasAnimationCompleted && isCandleLit) {
+      setIsCandleLit(false);
+      setFireworksActive(true);
+    }
+  }, [hasAnimationCompleted, isCandleLit]);
+
+  // Keyboard space key interaction
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space" && event.key !== " ") {
-        return;
-      }
-      event.preventDefault();
-      if (!hasStarted) {
-        playBackgroundMusic();
-        setHasStarted(true);
-        return;
-      }
-      if (hasAnimationCompleted && isCandleLit) {
-        setIsCandleLit(false);
-        setFireworksActive(true);
+      if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        if (currentPhase === "gate") {
+          handleBoxOpen();
+        } else if (currentPhase === "3d") {
+          blowOutCandle();
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasStarted, hasAnimationCompleted, isCandleLit, playBackgroundMusic]);
+  }, [currentPhase, handleBoxOpen, blowOutCandle]);
 
   const handleCardToggle = useCallback((id: string) => {
     setActiveCardId((current) => (current === id ? null : id));
   }, []);
 
-  const isScenePlaying = hasStarted && sceneStarted;
+  const resetToGate = useCallback(() => {
+    setCurrentPhase("gate");
+    setIsBoxOpened(false);
+    setHasAnimationCompleted(false);
+    setIsCandleLit(true);
+    setFireworksActive(false);
+    setActiveCardId(null);
+    setEnvironmentProgress(0);
+  }, []);
 
   return (
-    <div className="App">
-      <div
-        className="background-overlay"
-        style={{ opacity: backgroundOpacity }}
+    <div className="App relative w-full min-h-screen bg-black text-white select-none">
+      {/* Global Audio Toggle Button */}
+      <button
+        onClick={toggleMute}
+        className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-cyan-200 hover:text-white shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all active:scale-90"
+        title={isMuted ? "Unmute Music" : "Mute Music"}
       >
-        <div className="typed-text">
-          {typedLines.map((line, index) => {
-            const showCursor =
-              cursorVisible &&
-              index === cursorTargetIndex &&
-              (!typingComplete || !sceneStarted);
-            return (
-              <span className="typed-line" key={`typed-line-${index}`}>
-                {line || "\u00a0"}
-                {showCursor && (
-                  <span aria-hidden="true" className="typed-cursor">
-                    _
-                  </span>
-                )}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-      {hasAnimationCompleted && isCandleLit && (
-        <div className="hint-overlay">press space to blow out the candle</div>
+        {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+      </button>
+
+      {/* PHASE 1: Access Gate Page */}
+      {currentPhase === "gate" && (
+        <AccessGatePage
+          isBoxOpened={isBoxOpened}
+          onBoxOpen={handleBoxOpen}
+        />
       )}
-      <Canvas
-        gl={{ alpha: true }}
-        style={{ background: "transparent" }}
-        onCreated={({ gl }) => {
-          gl.setClearColor("#000000", 0);
-        }}
-      >
-        <Suspense fallback={null}>
-          <AnimatedScene
-            isPlaying={isScenePlaying}
-            candleLit={isCandleLit}
-            onBackgroundFadeChange={setBackgroundOpacity}
-            onEnvironmentProgressChange={setEnvironmentProgress}
-            onAnimationComplete={() => setHasAnimationCompleted(true)}
-            cards={BIRTHDAY_CARDS}
-            activeCardId={activeCardId}
-            onToggleCard={handleCardToggle}
-          />
-          <ambientLight intensity={(1 - environmentProgress) * 0.8} />
-          <directionalLight intensity={0.5} position={[2, 10, 0]} color={[1, 0.9, 0.95]}/>
-          <Environment
-            files={["/shanghai_bund_4k.hdr"]}
-            backgroundRotation={[0, 3.3, 0]}
-            environmentRotation={[0, 3.3, 0]}
-            background
-            environmentIntensity={0.1 * environmentProgress}
-            backgroundIntensity={0.05 * environmentProgress}
-          />
-          <EnvironmentBackgroundController intensity={0.05 * environmentProgress} />
-          <Fireworks isActive={fireworksActive} origin={[0, 10, 0]} />
-          <ConfiguredOrbitControls />
-        </Suspense>
-      </Canvas>
+
+      {/* PHASE 2: 4K Frame Sequence Scroll Unboxing */}
+      {currentPhase === "scroll" && (
+        <ScrollTriggerSequence
+          frameBasePath="/sequences/Unboxing/"
+          totalFrames={300}
+          onSequenceComplete={handleSequenceComplete}
+        />
+      )}
+
+      {/* PHASE 3: 3D Frozen Alpine Graphics Scene */}
+      {currentPhase === "3d" && (
+        <div className="relative w-screen h-screen overflow-hidden">
+          {/* Top Control Bar in 3D Mode */}
+          <div className="absolute top-4 left-4 z-40 flex items-center gap-2 pointer-events-auto">
+            <button
+              onClick={resetToGate}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-xs font-semibold text-cyan-200 transition-all active:scale-95"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restart Experience</span>
+            </button>
+            <LauncherBalloons buttonText="Balloons 🎈" className="scale-90 origin-left" />
+          </div>
+
+          {/* Candle Blow Hint Overlay */}
+          {hasAnimationCompleted && isCandleLit && (
+            <div
+              className="hint-overlay flex items-center gap-2 px-6 py-3 rounded-full bg-black/60 backdrop-blur-md border border-cyan-400/30 text-cyan-100 shadow-[0_0_30px_rgba(124,199,251,0.4)] transition-all hover:scale-105 active:scale-95"
+              onClick={blowOutCandle}
+            >
+              <Sparkles className="w-5 h-5 text-amber-300 animate-spin" style={{ animationDuration: "5s" }} />
+              <span className="text-xs md:text-sm tracking-widest font-semibold uppercase">
+                Press Space or Click to Blow the Candle 🎂
+              </span>
+              <Sparkles className="w-5 h-5 text-amber-300 animate-spin" style={{ animationDuration: "5s" }} />
+            </div>
+          )}
+
+          {/* 3D WebGL Canvas */}
+          <Canvas
+            gl={{ alpha: true, antialias: true }}
+            camera={{ position: [0, 1.1, 3.2], fov: 45 }}
+            style={{ background: "transparent" }}
+            onCreated={({ gl }) => {
+              gl.setClearColor("#000000", 0);
+            }}
+          >
+            <Suspense fallback={null}>
+              <AnimatedScene
+                isPlaying={true}
+                candleLit={isCandleLit}
+                onEnvironmentProgressChange={setEnvironmentProgress}
+                onAnimationComplete={() => setHasAnimationCompleted(true)}
+                cards={BIRTHDAY_CARDS}
+                activeCardId={activeCardId}
+                onToggleCard={handleCardToggle}
+              />
+
+              {/* Alpine Cool Lighting */}
+              <ambientLight intensity={(1 - environmentProgress) * 0.7 + 0.3} color="#DCEBFF" />
+              <directionalLight
+                intensity={0.65}
+                position={[-2, 10, 5]}
+                color="#F5F8FF"
+                castShadow
+              />
+              <directionalLight
+                intensity={0.35}
+                position={[3, 4, -2]}
+                color="#7CC7FB"
+              />
+
+              {/* Snowy Alpine HDRI */}
+              <Environment
+                files="/environments/snowy.hdr"
+                backgroundRotation={[0, 3.3, 0]}
+                environmentRotation={[0, 3.3, 0]}
+                background
+                environmentIntensity={0.12 * environmentProgress}
+                backgroundIntensity={0.06 * environmentProgress}
+              />
+              <EnvironmentBackgroundController intensity={0.06 * environmentProgress} />
+
+              {/* Celebratory Fireworks */}
+              <Fireworks isActive={fireworksActive} origin={[0, 7, -8]} />
+
+              {/* Orbit Controls (enabled for 360 inspection) */}
+              <ConfiguredOrbitControls enabled={activeCardId === null} />
+            </Suspense>
+          </Canvas>
+        </div>
+      )}
     </div>
   );
 }
