@@ -16,7 +16,7 @@ export interface BalloonsHandle {
 }
 
 const Balloons = React.forwardRef<BalloonsHandle, BalloonsProps>(
-  ({ type = "default", text = "Happy 19th Nano! 🎂", className, onLaunch }, ref) => {
+  ({ type = "default", text = "Happy 19th Nano!", className, onLaunch }, ref) => {
     const containerRef = React.useRef<HTMLDivElement>(null);
 
     const launchAnimation = React.useCallback(async () => {

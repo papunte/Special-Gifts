@@ -191,11 +191,15 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
         trigger: container,
         start: "top top",
         end: "bottom bottom",
+        pin: true,
+        pinSpacing: true,
         scrub: 0.05,
         onUpdate: (self) => {
           const progress = self.progress;
           setScrollProgress(progress);
-
+          if (progress < 0.90) {
+            isCompletedRef.current = false;
+          }
           // Frame sequence occupies 0–50% of the scroll range
           // Beyond 50% the canvas holds on the last frame then fades to black staging
           const frameProgress = Math.min(1, progress / 0.70);
@@ -208,7 +212,7 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
           renderFrame(targetFrame);
 
           // Trigger sequence completion when scroll reaches 95%
-          if (progress >= 0.94 && !isCompletedRef.current) {
+          if (progress >= 0.99 && !isCompletedRef.current) {
             handleComplete();
           }
         },
@@ -239,7 +243,7 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
       style={{ height: "600vh" }}
     >
       {/* Sticky Fullscreen Viewport */}
-      <div className="sticky top-0 left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black">
+      <div className="relative left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black">
         {/* 4K Frame Canvas */}
         <canvas
           ref={canvasRef}

@@ -30,7 +30,7 @@ type BirthdayCardProps = {
 const CARD_SCALE = 0.25;
 const CARD_WIDTH = 6 * CARD_SCALE;
 const CARD_HEIGHT = 5 * CARD_SCALE;
-const CAMERA_DISTANCE = 1.2;
+const CAMERA_DISTANCE = 2;
 const CAMERA_Y_FLOOR = 0.8;
 const HOVER_LIFT = 0.04;
 

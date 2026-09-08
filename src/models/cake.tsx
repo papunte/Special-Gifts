@@ -115,15 +115,15 @@ export function CakeModel({
     return cloned;
   }, [scene]);
 
-  // Procedural sunflower & pearl decorations positioned around tiers
+  // Procedural sunflower & pearl decorations positioned around tiers & top
   const decorations = useMemo(() => {
     const sunflowers = [];
     const pearls = [];
 
-    // Sunflower tier 1 (mid tier)
-    const tier1Radius = 0.85;
-    const tier1Height = 0.45;
+    // Tier 1 (upper tier rim sunflowers)
     const countTier1 = 6;
+    const tier1Radius = 0.88;
+    const tier1Height = 0.52;
     for (let i = 0; i < countTier1; i++) {
       const angle = (i / countTier1) * Math.PI * 2;
       sunflowers.push({
@@ -132,15 +132,15 @@ export function CakeModel({
           tier1Height,
           Math.sin(angle) * tier1Radius,
         ] as [number, number, number],
-        rotation: [0, -angle - Math.PI / 2, 0] as [number, number, number],
-        scale: 0.18,
+        rotation: [-0.2, -angle - Math.PI / 2, 0] as [number, number, number],
+        scale: 0.35,
       });
     }
 
-    // Sunflower tier 2 (lower tier)
-    const tier2Radius = 1.15;
-    const tier2Height = 0.15;
+    // Tier 2 (lower tier rim sunflowers)
     const countTier2 = 8;
+    const tier2Radius = 1.20;
+    const tier2Height = 0.20;
     for (let i = 0; i < countTier2; i++) {
       const angle = (i / countTier2) * Math.PI * 2 + Math.PI / 8;
       sunflowers.push({
@@ -149,8 +149,25 @@ export function CakeModel({
           tier2Height,
           Math.sin(angle) * tier2Radius,
         ] as [number, number, number],
-        rotation: [0, -angle - Math.PI / 2, 0] as [number, number, number],
-        scale: 0.22,
+        rotation: [-0.2, -angle - Math.PI / 2, 0] as [number, number, number],
+        scale: 0.42,
+      });
+    }
+
+    // Top tier cluster sunflowers
+    const countTop = 3;
+    const topRadius = 0.55;
+    const topHeight = 0.82;
+    for (let i = 0; i < countTop; i++) {
+      const angle = (i / countTop) * Math.PI * 2 + Math.PI / 6;
+      sunflowers.push({
+        position: [
+          Math.cos(angle) * topRadius,
+          topHeight,
+          Math.sin(angle) * topRadius,
+        ] as [number, number, number],
+        rotation: [-0.5, -angle - Math.PI / 2, 0] as [number, number, number],
+        scale: 0.45,
       });
     }
 
@@ -196,25 +213,55 @@ export function CakeModel({
         />
       </mesh>
 
-      {/* Decorative Sunflowers */}
+      {/* Decorative Vibrant 3D Sunflowers */}
       {decorations.sunflowers.map((s, idx) => (
         <group key={`sunflower-${idx}`} position={s.position} rotation={s.rotation} scale={s.scale}>
-          {/* Flower Center */}
-          <mesh position={[0, 0, 0.02]}>
-            <cylinderGeometry args={[0.22, 0.22, 0.08, 16]} />
-            <meshStandardMaterial color="#5C3317" roughness={0.9} />
+          {/* Green Leaf Accent */}
+          <mesh position={[-0.15, -0.1, -0.05]} rotation={[0.2, 0.3, -0.4]}>
+            <coneGeometry args={[0.15, 0.45, 5]} />
+            <meshStandardMaterial color="#2E6930" roughness={0.7} />
           </mesh>
-          {/* Yellow Petals Ring */}
-          {Array.from({ length: 12 }).map((_, pIdx) => {
-            const pAngle = (pIdx / 12) * Math.PI * 2;
+          <mesh position={[0.15, -0.1, -0.05]} rotation={[0.2, -0.3, 0.4]}>
+            <coneGeometry args={[0.15, 0.45, 5]} />
+            <meshStandardMaterial color="#2E6930" roughness={0.7} />
+          </mesh>
+
+          {/* Dark Brown Seed Center */}
+          <mesh position={[0, 0, 0.03]}>
+            <cylinderGeometry args={[0.24, 0.24, 0.09, 20]} />
+            <meshStandardMaterial color="#3D1E03" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 0, 0.075]}>
+            <sphereGeometry args={[0.20, 16, 12]} />
+            <meshStandardMaterial color="#2A1402" roughness={0.95} />
+          </mesh>
+
+          {/* Layer 1: Outer Golden Petals Ring */}
+          {Array.from({ length: 14 }).map((_, pIdx) => {
+            const pAngle = (pIdx / 14) * Math.PI * 2;
             return (
               <mesh
-                key={`petal-${pIdx}`}
-                position={[Math.cos(pAngle) * 0.32, Math.sin(pAngle) * 0.32, 0]}
+                key={`petal1-${pIdx}`}
+                position={[Math.cos(pAngle) * 0.36, Math.sin(pAngle) * 0.36, 0]}
                 rotation={[0, 0, pAngle]}
               >
-                <coneGeometry args={[0.09, 0.35, 8]} />
-                <meshStandardMaterial color="#FFD700" roughness={0.5} />
+                <coneGeometry args={[0.11, 0.42, 8]} />
+                <meshStandardMaterial color="#FFC700" roughness={0.4} metalness={0.05} />
+              </mesh>
+            );
+          })}
+
+          {/* Layer 2: Inner Bright Yellow Petals Ring */}
+          {Array.from({ length: 14 }).map((_, pIdx) => {
+            const pAngle = (pIdx / 14) * Math.PI * 2 + Math.PI / 14;
+            return (
+              <mesh
+                key={`petal2-${pIdx}`}
+                position={[Math.cos(pAngle) * 0.28, Math.sin(pAngle) * 0.28, 0.02]}
+                rotation={[0, 0, pAngle]}
+              >
+                <coneGeometry args={[0.09, 0.34, 8]} />
+                <meshStandardMaterial color="#FFD700" roughness={0.35} metalness={0.05} />
               </mesh>
             );
           })}

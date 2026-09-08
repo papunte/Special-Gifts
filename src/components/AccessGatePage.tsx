@@ -91,7 +91,7 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
           className="text-sm md:text-base font-medium tracking-wide text-white/80 hover:text-white/95 transition-opacity duration-300 cursor-default"
           style={{ fontFamily: "'Outfit', sans-serif" }}
         >
-          Present from Alex
+          Precent from Alex
         </span>
       </motion.nav>
 
