@@ -23,10 +23,10 @@ const ORBIT_TARGET = new Vector3(0, 0.8, 0);
 const ORBIT_INITIAL_RADIUS = 5.0;
 const ORBIT_INITIAL_HEIGHT = 1.6;
 const ORBIT_INITIAL_AZIMUTH = Math.PI / 2.2;
-const ORBIT_MIN_DISTANCE = 2.5;
-const ORBIT_MAX_DISTANCE = 10;
-const ORBIT_MIN_POLAR = Math.PI * 0.05;
-const ORBIT_MAX_POLAR = Math.PI / 2.05;
+const ORBIT_MIN_DISTANCE = 1.5;
+const ORBIT_MAX_DISTANCE = 18;
+const ORBIT_MIN_POLAR = 0;
+const ORBIT_MAX_POLAR = Math.PI / 1.9;
 
 const BIRTHDAY_CARDS: ReadonlyArray<BirthdayCardConfig> = [
   {

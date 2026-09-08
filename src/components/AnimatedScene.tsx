@@ -52,7 +52,7 @@ const CANDLE_DROP_DURATION = 1.2;
 const CANDLE_DROP_START = 5.0;
 
 // Olaf walks in position alongside cake descent
-const OLAF_END_POSITION: [number, number, number] = [1.2, 0, 0.8];
+const OLAF_END_POSITION: [number, number, number] = [-1.4, 0, 0];
 
 // Environment fade (9.8s → 10.5s)
 const BACKGROUND_FADE_DURATION = 0.7;
@@ -162,7 +162,7 @@ export function AnimatedScene({
     olaf.position.y = lerp(CAKE_START_Y + 0.1, OLAF_END_POSITION[1], cakeEase);
     olaf.position.x = OLAF_END_POSITION[0];
     olaf.position.z = OLAF_END_POSITION[2];
-    olaf.rotation.y = -0.4 + cakeEase * Math.PI * 2;
+    olaf.rotation.y = -0.4;
 
     // ─── Table slide in (1.5s → 3.5s) ──────────────────────────
     let tableZ = TABLE_START_Z;
@@ -273,12 +273,12 @@ export function AnimatedScene({
 
       {/* Olaf 3D Character Model — positioned IN FRONT of table */}
       <group ref={olafGroup}>
-        <OlafModel scale={0.55} />
+        <OlafModel scale={0.30} />
       </group>
 
       {/* Decorated Frozen Cake — scaled down for proper proportion */}
       <group ref={cakeGroup}>
-        <CakeModel scale={0.45} />
+        <CakeModel scale={0.35} />
       </group>
 
       {/* Candle Model */}

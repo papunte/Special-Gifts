@@ -191,14 +191,14 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
         trigger: container,
         start: "top top",
         end: "bottom bottom",
-        scrub: 0.15,
+        scrub: 0.05,
         onUpdate: (self) => {
           const progress = self.progress;
           setScrollProgress(progress);
 
           // Frame sequence occupies 0–50% of the scroll range
           // Beyond 50% the canvas holds on the last frame then fades to black staging
-          const frameProgress = Math.min(1, progress / 0.5);
+          const frameProgress = Math.min(1, progress / 0.70);
 
           const targetFrame = Math.min(
             totalFrames,
@@ -208,7 +208,7 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
           renderFrame(targetFrame);
 
           // Trigger sequence completion when scroll reaches 95%
-          if (progress >= 0.95 && !isCompletedRef.current) {
+          if (progress >= 0.94 && !isCompletedRef.current) {
             handleComplete();
           }
         },
@@ -221,15 +221,15 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
   }, [handleComplete, renderFrame, totalFrames]);
 
   // Derived states from scroll progress
-  const isInFrameSequence = scrollProgress < 0.52;
-  const isInBlackStaging = scrollProgress >= 0.50 && scrollProgress < 0.90;
-  const showBalloonButton = scrollProgress >= 0.60 && scrollProgress < 0.85;
+  const isInFrameSequence = scrollProgress < 0.72;
+  const isInBlackStaging = scrollProgress >= 0.72 && scrollProgress < 0.93;
+  const showBalloonButton = scrollProgress >= 0.78 && scrollProgress < 0.90;
 
   // Canvas opacity: fade out after frame sequence ends
-  const canvasOpacity = scrollProgress < 0.48
+  const canvasOpacity = scrollProgress < 0.68
     ? 1
-    : scrollProgress < 0.55
-      ? 1 - ((scrollProgress - 0.48) / 0.07)
+    : scrollProgress < 0.74
+      ? 1 - ((scrollProgress - 0.68) / 0.06)
       : 0;
 
   return (
@@ -275,7 +275,7 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
 
         {/* Black Staging Area — Launch Birthday Balloons Button */}
         <AnimatePresence>
-          {isInBlackStaging && !isInFrameSequence && (
+          {isInBlackStaging && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -305,7 +305,7 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
 
         {/* Final black fade transition to 3D */}
         <AnimatePresence>
-          {scrollProgress >= 0.90 && (
+          {scrollProgress >= 0.93 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
