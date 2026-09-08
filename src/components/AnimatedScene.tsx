@@ -162,6 +162,7 @@ export function AnimatedScene({
     olaf.position.y = lerp(CAKE_START_Y + 0.1, OLAF_END_POSITION[1], cakeEase);
     olaf.position.x = OLAF_END_POSITION[0];
     olaf.position.z = OLAF_END_POSITION[2];
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     olaf.rotation.y = -5, 5;
 
     // ─── Table slide in (1.5s → 3.5s) ──────────────────────────

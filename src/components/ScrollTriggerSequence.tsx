@@ -7,6 +7,20 @@ import { motion, AnimatePresence } from "framer-motion";
 
 gsap.registerPlugin(ScrollTrigger);
 
+// ── Scroll progress timeline (module-level constants) ─────────────────────────
+//  0.00 – 0.70   Image sequence (frames 1–300)
+//  0.70 – 0.86   Balloon stage: button rises from bottom, centers, exits top
+//    0.70 – 0.78   button enters (bottom → center)
+//    0.78 – 0.86   button exits  (center → top)
+//  0.70 – 0.95   Black overlay (z-30)
+//  0.93 – 1.00   Final black fade (z-40) → 3D
+//  0.99+          onSequenceComplete fires
+// ─────────────────────────────────────────────────────────────────────────────
+const SEQ_END = 0.70; // frame sequence completes
+const BALLOON_END = 0.86; // balloon button fully exited top
+const BLACK_END = 0.95; // black overlay disappears
+const FINAL_FADE = 0.93; // final full-black layer appears
+
 export interface ScrollTriggerSequenceProps {
   frameBasePath?: string; // default: "/sequences/Unboxing/"
   totalFrames?: number;   // default: 300
@@ -28,11 +42,6 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
   const isCompletedRef = useRef<boolean>(false);
 
   const [scrollProgress, setScrollProgress] = useState<number>(0);
-  const [currentFrame, setCurrentFrame] = useState<number>(1);
-  const lastFrameTimeRef = useRef<number | null>(null);
-  // Forces a React re-render after the 1500ms delay so the button appears
-  const [balloonTimerFired, setBalloonTimerFired] = useState<boolean>(false);
-  const balloonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Helper to get formatted frame path: frame_0001.webp -> frame_0300.webp
   const getFramePath = useCallback(
@@ -79,7 +88,23 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
     [loadFrame, totalFrames]
   );
 
-  // Draw a frame on the canvas preserving aspect ratio
+  // Draw a frame on the canvas with responsive, aspect-correct scaling.
+  //
+  // RESPONSIVE STRATEGY — contain/cover blend:
+  //   containScale: image fits entirely within the viewport (no cropping).
+  //   coverScale:   image fills the viewport (may crop edges).
+  //
+  //   Portrait screens (mobile): pure contain — no cropping, comfortable framing.
+  //   Landscape screens (laptop/desktop): blend 0–70% toward cover for
+  //     immersive feel without extreme zoom on ultrawide.
+  //
+  //   blend = 0   → pure contain (no overflow)
+  //   blend = 0.7 → 70% of the way from contain to cover
+  //
+  //   Portrait (aspect < 1):   blend = 0       (contain only)
+  //   Landscape (aspect ≥ 1):  blend = min(0.7, (aspect-1) × 0.7)
+  //     e.g. 16:9 (1.78) → blend ≈ 0.55
+  //          21:9 (2.37) → blend = 0.70  (capped)
   const drawFrame = useCallback((img: HTMLImageElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -99,26 +124,23 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, displayWidth, displayHeight);
 
-    // Cover calculation so 4K WebP fills the screen
-    const imgAspect = img.naturalWidth / img.naturalHeight;
-    const screenAspect = displayWidth / displayHeight;
+    // Principled contain/cover blend based on viewport aspect ratio
+    const scaleByW = displayWidth / img.naturalWidth;
+    const scaleByH = displayHeight / img.naturalHeight;
+    const containScale = Math.min(scaleByW, scaleByH);
+    const coverScale = Math.max(scaleByW, scaleByH);
+    const viewportAspect = displayWidth / displayHeight;
 
-    let renderWidth: number;
-    let renderHeight: number;
-    let offsetX: number;
-    let offsetY: number;
+    // blend: 0 on portrait, up to 0.7 on landscape
+    const blend = viewportAspect < 1.0
+      ? 0
+      : Math.min(0.70, (viewportAspect - 1.0) * 0.70);
 
-    if (screenAspect > imgAspect) {
-      renderWidth = displayWidth;
-      renderHeight = displayWidth / imgAspect;
-      offsetX = 0;
-      offsetY = (displayHeight - renderHeight) / 2;
-    } else {
-      renderHeight = displayHeight;
-      renderWidth = displayHeight * imgAspect;
-      offsetX = (displayWidth - renderWidth) / 2;
-      offsetY = 0;
-    }
+    const renderScale = containScale + (coverScale - containScale) * blend;
+    const renderWidth = img.naturalWidth * renderScale;
+    const renderHeight = img.naturalHeight * renderScale;
+    const offsetX = (displayWidth - renderWidth) / 2;
+    const offsetY = (displayHeight - renderHeight) / 2;
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -176,12 +198,13 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
     };
   }, [drawFrame, loadFrame]);
 
-  // Handle sequence completion transition
+  // Handle sequence completion.
+  // Fires once when scroll reaches 0.99 (purely scroll-driven, no timer gate).
   const handleComplete = useCallback(() => {
     if (isCompletedRef.current) return;
     isCompletedRef.current = true;
 
-    // Clean black fade then transition
+    // Short black fade then transition to 3D phase
     setTimeout(() => {
       if (onSequenceComplete) {
         onSequenceComplete();
@@ -214,43 +237,24 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
         const progress = self.progress;
         setScrollProgress(progress);
 
-        if (progress < 0.90) {
+        // Reset completion guard on backward scroll
+        if (progress < 0.95) {
           isCompletedRef.current = false;
         }
 
-        // Frame sequence occupies 0–70% of the scroll range.
-        // Beyond 70% the canvas holds on the last frame then fades to black.
-        const frameProgress = Math.min(1, progress / 0.70);
+        // Frame sequence: maps progress 0.00–0.70 to frames 1–300.
+        // Beyond 0.70 the last frame holds; black overlay takes over visually.
+        const frameProgress = Math.min(1, progress / SEQ_END);
         const targetFrame = Math.min(
           totalFrames,
           Math.max(1, Math.floor(frameProgress * (totalFrames - 1)) + 1)
         );
 
         renderFrame(targetFrame);
-        setCurrentFrame(targetFrame);
 
-        // Track first time frame >= 295 is reached for the 1500ms balloon gate.
-        // A one-shot setTimeout forces a React re-render so the button
-        // appears even if the user stops scrolling after reaching frame 295.
-        if (targetFrame >= 300 && lastFrameTimeRef.current === null) {
-          lastFrameTimeRef.current = performance.now();
-          if (balloonTimerRef.current !== null) {
-            clearTimeout(balloonTimerRef.current);
-          }
-          balloonTimerRef.current = setTimeout(() => {
-            setBalloonTimerFired(true);
-          }, 1500);
-        } else if (targetFrame < 300) {
-          // User scrolled back — reset the gate
-          lastFrameTimeRef.current = null;
-          setBalloonTimerFired(false);
-          if (balloonTimerRef.current !== null) {
-            clearTimeout(balloonTimerRef.current);
-            balloonTimerRef.current = null;
-          }
-        }
-
-        // Trigger sequence completion when scroll reaches 99%
+        // 3D transition: purely scroll-driven — fires only at scroll end.
+        // No timer. No balloon-state gate. Balloon stage is 0.70–0.86;
+        // user must scroll past it before progress reaches 0.99.
         if (progress >= 0.99 && !isCompletedRef.current) {
           handleComplete();
         }
@@ -263,34 +267,40 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
     };
   }, [handleComplete, renderFrame, totalFrames]);
 
-  // Clean up balloon setTimeout on unmount
-  useEffect(() => {
-    return () => {
-      if (balloonTimerRef.current !== null) {
-        clearTimeout(balloonTimerRef.current);
-      }
-    };
-  }, []);
+  // ── Derived display states ─────────────────────────────────────────────────
 
-  // Derived display states
-  const isInFrameSequence = scrollProgress < 0.72;
-  const isInBlackStaging = scrollProgress >= 0.72 && scrollProgress < 0.93;
+  const isInFrameSequence = scrollProgress < SEQ_END;
+  // Black staging is active from SEQ_END to BLACK_END.
+  // We keep it in the DOM via isInBlackStaging so LauncherBalloons stays mounted
+  // (no pop-in on conditional mount). Visual opacity is scroll-driven below.
+  const isInBlackStaging = scrollProgress >= SEQ_END && scrollProgress < BLACK_END;
 
-  // Balloon button: visible only after frame 295 AND 1500ms have elapsed.
-  // balloonTimerFired is set by setTimeout above — guarantees a re-render
-  // even if the user stops scrolling (no further onUpdate invocations).
-  const showBalloonButton =
-    scrollProgress >= 0.72 &&
-    scrollProgress < 0.90 &&
-    currentFrame >= 295 &&
-    balloonTimerFired;
+  // Balloon button: 100% scroll-driven — no timer, no timeout, no state outside progress.
+  //
+  // balloonT ∈ [0, 1] across the balloon phase (SEQ_END=0.70 to BALLOON_END=0.86).
+  //   t = 0.0: button is one full screen-height below center (entering)
+  //   t = 0.5: button is at center    (progress ≈ 0.78)
+  //   t = 1.0: button is one full screen-height above center (exited)
+  //
+  // Backward scroll reverses the animation automatically — no timers.
+  const balloonT = Math.max(0, Math.min(1,
+    (scrollProgress - SEQ_END) / (BALLOON_END - SEQ_END)
+  ));
+  // +100vh (below) → 0 (center) → -100vh (above)
+  const buttonOffsetVh = (1 - 2 * balloonT) * 100;
+  // Opacity: 0 at edges, 1 in the middle 60% of the phase
+  const buttonOpacity = Math.min(1, Math.min(balloonT, 1 - balloonT) * 6);
 
-  // Canvas opacity: fade out after frame sequence ends
-  const canvasOpacity = scrollProgress < 0.68
-    ? 1
-    : scrollProgress < 0.74
-      ? 1 - ((scrollProgress - 0.68) / 0.06)
-      : 0;
+  // Black overlay opacity: scroll-driven fade-in over progress 0.70 → 0.74.
+  // This replaces the Framer Motion time-based "duration: 0.5" fade, so the
+  // overlay opacity is scrubbed by scroll — it cannot cover the canvas before
+  // the user actually scrolls past SEQ_END.
+  const overlayOpacity = scrollProgress <= SEQ_END
+    ? 0
+    : Math.min(1, (scrollProgress - SEQ_END) / 0.04);
+
+  // Canvas opacity: always 1 — black overlay handles the visual transition
+  const canvasOpacity = 1;
 
   return (
     <div
@@ -300,11 +310,11 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
     >
       {/* Inner 100vh viewport — pinned by GSAP ScrollTrigger (no CSS sticky) */}
       <div ref={viewportRef} className="relative left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black">
-        {/* 4K Frame Canvas */}
+        {/* 4K Frame Canvas — opacity always 1, no CSS transition needed */}
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-          style={{ opacity: canvasOpacity, transition: "opacity 0.3s ease" }}
+          style={{ opacity: canvasOpacity }}
         />
 
         {/* Subtle Top & Bottom Vignette Overlays (only during frame sequence) */}
@@ -326,46 +336,54 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
               className="absolute bottom-8 inset-x-0 z-20 flex flex-col items-center gap-1.5 pointer-events-none"
             >
               <span className="text-xs md:text-sm font-medium tracking-widest uppercase text-white/60 bg-black/40 backdrop-blur-sm px-5 py-2 rounded-full border border-white/10">
-                Scroll down to unbox the surprise
+                Keep scrolling very slowly, and wait for the surprise
               </span>
               <ChevronDown className="w-4 h-4 animate-bounce text-white/40" />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Black Staging Area — Launch Birthday Balloons Button */}
-        <AnimatePresence>
-          {isInBlackStaging && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6 }}
-              className="absolute inset-0 bg-black z-30 flex items-center justify-center"
-            >
-              <AnimatePresence>
-                {showBalloonButton && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="flex items-center justify-center"
-                  >
-                    <LauncherBalloons
-                      buttonText="Launch Birthday Balloons"
-                      className=""
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/*
+          Black Staging Area — active from SEQ_END (0.70) to BLACK_END (0.95).
 
-        {/* Final black fade transition to 3D */}
+          IMPORTANT: this is a plain div (not AnimatePresence/motion.div).
+          Its opacity is scroll-driven (overlayOpacity), not time-based.
+          This means it cannot cover the canvas before the user scrolls past 0.70
+          — the premature fade bug is eliminated.
+
+          LauncherBalloons is ALWAYS mounted while isInBlackStaging is true.
+          Its position/opacity are controlled by scroll-driven inline styles.
+          There is no conditional mount/unmount of the button inside the staging
+          zone — this eliminates the "pop-in" entrance animation bug.
+        */}
+        {isInBlackStaging && (
+          <div
+            className="absolute inset-0 bg-black z-30"
+            style={{ opacity: overlayOpacity }}
+          >
+            {/* Scroll-driven balloon button — position = f(self.progress), no timers */}
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: `translate(-50%, calc(-50% + ${buttonOffsetVh}vh))`,
+                opacity: buttonOpacity,
+                pointerEvents: buttonOpacity > 0.3 ? "auto" : "none",
+                willChange: "transform, opacity",
+              }}
+            >
+              <LauncherBalloons
+                buttonText="Enjoyed your 19th Nano"
+                className=""
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Final black fade — covers everything before 3D loads (z-40) */}
         <AnimatePresence>
-          {scrollProgress >= 0.93 && (
+          {scrollProgress >= FINAL_FADE && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

@@ -5,7 +5,7 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { motion, AnimatePresence } from "framer-motion";
 import { WetPaintButton } from "./ui/wet-paint-button";
-import { Clock, Lock, Unlock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 dayjs.extend(duration);
 dayjs.extend(utc);
@@ -31,10 +31,9 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
   onBoxOpen,
 }) => {
   const targetTime = useMemo(() => dayjs(TARGET_DATE_WIB), []);
-  const [isTestUnlocked, setIsTestUnlocked] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
-  const calculateTimeLeft = (): TimeLeft => {
+  const calculateTimeLeft = useCallback((): TimeLeft => {
     const now = dayjs();
     const diff = targetTime.diff(now);
 
@@ -50,7 +49,7 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
       seconds: dur.seconds(),
       totalMs: diff,
     };
-  };
+  }, [targetTime]);
 
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft);
 
@@ -59,9 +58,9 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
       setTimeLeft(calculateTimeLeft());
     }, 1000);
     return () => clearInterval(timer);
-  }, [targetTime]);
+  }, [calculateTimeLeft]);
 
-  const isActuallyUnlocked = timeLeft.totalMs <= 0 || isTestUnlocked;
+  const isActuallyUnlocked = timeLeft.totalMs <= 0;
 
   const handleOpenBox = useCallback(() => {
     setIsExiting(true);
@@ -91,7 +90,7 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
           className="text-sm md:text-base font-medium tracking-wide text-white/80 hover:text-white/95 transition-opacity duration-300 cursor-default"
           style={{ fontFamily: "'Outfit', sans-serif" }}
         >
-          Precent from Alex
+          Present from Alex
         </span>
       </motion.nav>
 
@@ -129,7 +128,7 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
             className="min-w-[260px] md:min-w-[320px]"
           >
             {isActuallyUnlocked ? (
-              <span>Open The Box</span>
+              <span>Ready for the surprise?</span>
             ) : (
               <>
                 <Clock className="w-5 h-5 text-neutral-500" />
@@ -137,16 +136,6 @@ export const AccessGatePage: React.FC<AccessGatePageProps> = ({
               </>
             )}
           </WetPaintButton>
-
-          {/* Preview Mode Toggle */}
-          <motion.button
-            onClick={() => setIsTestUnlocked((prev) => !prev)}
-            className="mt-1 flex items-center gap-1.5 px-3 py-1 text-[11px] rounded-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/8 transition-colors"
-            title="Toggle preview unlock for testing"
-          >
-            {isTestUnlocked ? <Unlock className="w-3 h-3 text-green-400" /> : <Lock className="w-3 h-3 text-amber-400" />}
-            <span>{isTestUnlocked ? "Preview Mode: UNLOCKED" : "Test Bypass / Unlock Now"}</span>
-          </motion.button>
         </motion.div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -53,56 +53,59 @@ export function Fireworks({ isActive, origin = [0, 5, -14] }: FireworksProps) {
     };
   }
 
-  const resetParticle = (index: number) => {
-    const {
-      positions,
-      velocities,
-      origins,
-      baseColors,
-      colors,
-      ages,
-      lifetimes,
-    } = dataRef.current!;
+  const resetParticle = useCallback(
+    (index: number) => {
+      const {
+        positions,
+        velocities,
+        origins,
+        baseColors,
+        colors,
+        ages,
+        lifetimes,
+      } = dataRef.current!;
 
-    const baseIndex = index * 3;
-    const burstOrigin = baseOrigin
-      .clone()
-      .add(new Vector3((Math.random() - 0.5) * 1000, Math.random() * 200, (Math.random() - 0.5) * 1000));
+      const baseIndex = index * 3;
+      const burstOrigin = baseOrigin
+        .clone()
+        .add(new Vector3((Math.random() - 0.5) * 1000, Math.random() * 200, (Math.random() - 0.5) * 1000));
 
-    origins[baseIndex] = burstOrigin.x;
-    origins[baseIndex + 1] = burstOrigin.y;
-    origins[baseIndex + 2] = burstOrigin.z;
+      origins[baseIndex] = burstOrigin.x;
+      origins[baseIndex + 1] = burstOrigin.y;
+      origins[baseIndex + 2] = burstOrigin.z;
 
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(Math.random() * 2 - 1)* 0.9;
-    const speed = 1 + Math.random() * 1.4;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 2 - 1) * 0.9;
+      const speed = 1 + Math.random() * 1.4;
 
-    velocities[baseIndex] = Math.sin(phi) * Math.cos(theta) * speed;
-    velocities[baseIndex + 1] = Math.cos(phi) * (speed * 1.2);
-    velocities[baseIndex + 2] = Math.sin(phi) * Math.sin(theta) * speed;
+      velocities[baseIndex] = Math.sin(phi) * Math.cos(theta) * speed;
+      velocities[baseIndex + 1] = Math.cos(phi) * (speed * 1.2);
+      velocities[baseIndex + 2] = Math.sin(phi) * Math.sin(theta) * speed;
 
-    const color = randomColor();
-    baseColors[baseIndex] = color.r;
-    baseColors[baseIndex + 1] = color.g;
-    baseColors[baseIndex + 2] = color.b;
+      const color = randomColor();
+      baseColors[baseIndex] = color.r;
+      baseColors[baseIndex + 1] = color.g;
+      baseColors[baseIndex + 2] = color.b;
 
-    colors[baseIndex] = 0;
-    colors[baseIndex + 1] = 0;
-    colors[baseIndex + 2] = 0;
+      colors[baseIndex] = 0;
+      colors[baseIndex + 1] = 0;
+      colors[baseIndex + 2] = 0;
 
-    positions[baseIndex] = burstOrigin.x;
-    positions[baseIndex + 1] = burstOrigin.y;
-    positions[baseIndex + 2] = burstOrigin.z;
+      positions[baseIndex] = burstOrigin.x;
+      positions[baseIndex + 1] = burstOrigin.y;
+      positions[baseIndex + 2] = burstOrigin.z;
 
-    lifetimes[index] = 1.6 + Math.random() * 1.3;
-    ages[index] = -Math.random() * 1.2;
-  };
+      lifetimes[index] = 1.6 + Math.random() * 1.3;
+      ages[index] = -Math.random() * 1.2;
+    },
+    [baseOrigin]
+  );
 
   useEffect(() => {
     for (let i = 0; i < TOTAL_PARTICLES; i += 1) {
       resetParticle(i);
     }
-  }, []);
+  }, [resetParticle]);
 
   useFrame((_, delta) => {
     const geometry = geometryRef.current;

@@ -25,6 +25,7 @@ export function PictureFrame({
   image,
   imageScale = DEFAULT_IMAGE_SCALE,
   imageOffset,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   imageInset = 0.01,
   children,
   ...groupProps
