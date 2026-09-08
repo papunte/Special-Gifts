@@ -18,13 +18,21 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
   totalFrames = 300,
   onSequenceComplete,
 }) => {
+  // Outer 600vh scroll container — provides scroll distance (NOT pinned)
   const containerRef = useRef<HTMLDivElement>(null);
+  // Inner 100vh viewport — this is the element GSAP will pin
+  const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageCacheRef = useRef<Map<number, HTMLImageElement>>(new Map());
   const currentFrameRef = useRef<number>(1);
   const isCompletedRef = useRef<boolean>(false);
 
   const [scrollProgress, setScrollProgress] = useState<number>(0);
+  const [currentFrame, setCurrentFrame] = useState<number>(1);
+  const lastFrameTimeRef = useRef<number | null>(null);
+  // Forces a React re-render after the 1500ms delay so the button appears
+  const [balloonTimerFired, setBalloonTimerFired] = useState<boolean>(false);
+  const balloonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Helper to get formatted frame path: frame_0001.webp -> frame_0300.webp
   const getFramePath = useCallback(
@@ -182,52 +190,100 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
   }, [onSequenceComplete]);
 
   // Setup GSAP ScrollTrigger
+  //
+  // ARCHITECTURE:
+  //   trigger  = outer 600vh container (provides scroll distance, NOT pinned)
+  //   pin      = inner 100vh viewport (the element GSAP fixes on screen)
+  //
+  // pinSpacing: false because the outer container already has explicit height.
+  // st.kill(true) removes pin, pin-spacer and any transform GSAP applied,
+  // so nothing stale remains when the component unmounts before 3D mounts.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const viewport = viewportRef.current;
+    if (!container || !viewport) return;
 
-    const ctx = gsap.context(() => {
-      ScrollTrigger.create({
-        trigger: container,
-        start: "top top",
-        end: "bottom bottom",
-        pin: true,
-        pinSpacing: true,
-        scrub: 0.05,
-        onUpdate: (self) => {
-          const progress = self.progress;
-          setScrollProgress(progress);
-          if (progress < 0.90) {
-            isCompletedRef.current = false;
+    const st = ScrollTrigger.create({
+      trigger: container,
+      pin: viewport,
+      pinSpacing: false,
+      start: "top top",
+      end: "bottom bottom",
+      scrub: 0.05,
+      onUpdate: (self) => {
+        const progress = self.progress;
+        setScrollProgress(progress);
+
+        if (progress < 0.90) {
+          isCompletedRef.current = false;
+        }
+
+        // Frame sequence occupies 0–70% of the scroll range.
+        // Beyond 70% the canvas holds on the last frame then fades to black.
+        const frameProgress = Math.min(1, progress / 0.70);
+        const targetFrame = Math.min(
+          totalFrames,
+          Math.max(1, Math.floor(frameProgress * (totalFrames - 1)) + 1)
+        );
+
+        renderFrame(targetFrame);
+        setCurrentFrame(targetFrame);
+
+        // Track first time frame >= 295 is reached for the 1500ms balloon gate.
+        // A one-shot setTimeout forces a React re-render so the button
+        // appears even if the user stops scrolling after reaching frame 295.
+        if (targetFrame >= 300 && lastFrameTimeRef.current === null) {
+          lastFrameTimeRef.current = performance.now();
+          if (balloonTimerRef.current !== null) {
+            clearTimeout(balloonTimerRef.current);
           }
-          // Frame sequence occupies 0–50% of the scroll range
-          // Beyond 50% the canvas holds on the last frame then fades to black staging
-          const frameProgress = Math.min(1, progress / 0.70);
-
-          const targetFrame = Math.min(
-            totalFrames,
-            Math.max(1, Math.floor(frameProgress * (totalFrames - 1)) + 1)
-          );
-
-          renderFrame(targetFrame);
-
-          // Trigger sequence completion when scroll reaches 95%
-          if (progress >= 0.99 && !isCompletedRef.current) {
-            handleComplete();
+          balloonTimerRef.current = setTimeout(() => {
+            setBalloonTimerFired(true);
+          }, 1500);
+        } else if (targetFrame < 300) {
+          // User scrolled back — reset the gate
+          lastFrameTimeRef.current = null;
+          setBalloonTimerFired(false);
+          if (balloonTimerRef.current !== null) {
+            clearTimeout(balloonTimerRef.current);
+            balloonTimerRef.current = null;
           }
-        },
-      });
-    }, containerRef);
+        }
+
+        // Trigger sequence completion when scroll reaches 99%
+        if (progress >= 0.99 && !isCompletedRef.current) {
+          handleComplete();
+        }
+      },
+    });
 
     return () => {
-      ctx.revert();
+      // kill(true) removes pin state, pin-spacer, and GSAP transforms from DOM
+      st.kill(true);
     };
   }, [handleComplete, renderFrame, totalFrames]);
 
-  // Derived states from scroll progress
+  // Clean up balloon setTimeout on unmount
+  useEffect(() => {
+    return () => {
+      if (balloonTimerRef.current !== null) {
+        clearTimeout(balloonTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Derived display states
   const isInFrameSequence = scrollProgress < 0.72;
   const isInBlackStaging = scrollProgress >= 0.72 && scrollProgress < 0.93;
-  const showBalloonButton = scrollProgress >= 0.78 && scrollProgress < 0.90;
+
+  // Balloon button: visible only after frame 295 AND 1500ms have elapsed.
+  // balloonTimerFired is set by setTimeout above — guarantees a re-render
+  // even if the user stops scrolling (no further onUpdate invocations).
+  const showBalloonButton =
+    scrollProgress >= 0.72 &&
+    scrollProgress < 0.90 &&
+    currentFrame >= 295 &&
+    balloonTimerFired;
 
   // Canvas opacity: fade out after frame sequence ends
   const canvasOpacity = scrollProgress < 0.68
@@ -242,8 +298,8 @@ export const ScrollTriggerSequence: React.FC<ScrollTriggerSequenceProps> = ({
       className="relative w-full bg-black select-none"
       style={{ height: "600vh" }}
     >
-      {/* Sticky Fullscreen Viewport */}
-      <div className="relative left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black">
+      {/* Inner 100vh viewport — pinned by GSAP ScrollTrigger (no CSS sticky) */}
+      <div ref={viewportRef} className="relative left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black">
         {/* 4K Frame Canvas */}
         <canvas
           ref={canvasRef}
