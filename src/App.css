@@ -20,23 +20,29 @@ canvas {
   bottom: 2.5rem;
   left: 50%;
   transform: translateX(-50%);
-  letter-spacing: 0.18em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(224, 239, 254, 0.95);
+  color: rgba(255, 255, 255, 0.7);
   pointer-events: auto;
   cursor: pointer;
   z-index: 30;
   user-select: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   animation: floatPulse 3s infinite ease-in-out;
 }
 
 @keyframes floatPulse {
   0%, 100% {
-    transform: translateX(-50%) translateY(0) scale(1);
-    box-shadow: 0 0 20px rgba(124, 199, 251, 0.3);
+    transform: translateX(-50%) translateY(0);
+    opacity: 0.85;
   }
   50% {
-    transform: translateX(-50%) translateY(-6px) scale(1.02);
-    box-shadow: 0 0 35px rgba(124, 199, 251, 0.6);
+    transform: translateX(-50%) translateY(-4px);
+    opacity: 1;
   }
 }

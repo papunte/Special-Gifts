@@ -14,18 +14,17 @@ import type { BirthdayCardConfig } from "./components/AnimatedScene";
 import { AnimatedScene } from "./components/AnimatedScene";
 import { AccessGatePage } from "./components/AccessGatePage";
 import { ScrollTriggerSequence } from "./components/ScrollTriggerSequence";
-import { LauncherBalloons } from "./components/LauncherBalloons";
-import { Volume2, VolumeX, RotateCcw, Sparkles } from "lucide-react";
+import { Volume2, VolumeX } from "lucide-react";
 import "./App.css";
 
 type Phase = "gate" | "scroll" | "3d";
 
-const ORBIT_TARGET = new Vector3(0, 1, 0);
-const ORBIT_INITIAL_RADIUS = 3.2;
-const ORBIT_INITIAL_HEIGHT = 1.1;
+const ORBIT_TARGET = new Vector3(0, 0.8, 0);
+const ORBIT_INITIAL_RADIUS = 5.0;
+const ORBIT_INITIAL_HEIGHT = 1.6;
 const ORBIT_INITIAL_AZIMUTH = Math.PI / 2.2;
-const ORBIT_MIN_DISTANCE = 1.8;
-const ORBIT_MAX_DISTANCE = 8;
+const ORBIT_MIN_DISTANCE = 2.5;
+const ORBIT_MAX_DISTANCE = 10;
 const ORBIT_MIN_POLAR = Math.PI * 0.05;
 const ORBIT_MAX_POLAR = Math.PI / 2.05;
 
@@ -94,7 +93,6 @@ function EnvironmentBackgroundController({
 
 export default function App() {
   const [currentPhase, setCurrentPhase] = useState<Phase>("gate");
-  const [isBoxOpened, setIsBoxOpened] = useState(false);
   const [environmentProgress, setEnvironmentProgress] = useState(0);
   const [hasAnimationCompleted, setHasAnimationCompleted] = useState(false);
   const [isCandleLit, setIsCandleLit] = useState(true);
@@ -141,7 +139,6 @@ export default function App() {
 
   // Handler when "Open The Box" is clicked on Gate page
   const handleBoxOpen = useCallback(() => {
-    setIsBoxOpened(true);
     setCurrentPhase("scroll");
     playBackgroundMusic();
   }, [playBackgroundMusic]);
@@ -164,9 +161,7 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === "Space" || event.key === " ") {
         event.preventDefault();
-        if (currentPhase === "gate") {
-          handleBoxOpen();
-        } else if (currentPhase === "3d") {
+        if (currentPhase === "3d") {
           blowOutCandle();
         }
       }
@@ -174,20 +169,10 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentPhase, handleBoxOpen, blowOutCandle]);
+  }, [currentPhase, blowOutCandle]);
 
   const handleCardToggle = useCallback((id: string) => {
     setActiveCardId((current) => (current === id ? null : id));
-  }, []);
-
-  const resetToGate = useCallback(() => {
-    setCurrentPhase("gate");
-    setIsBoxOpened(false);
-    setHasAnimationCompleted(false);
-    setIsCandleLit(true);
-    setFireworksActive(false);
-    setActiveCardId(null);
-    setEnvironmentProgress(0);
   }, []);
 
   return (
@@ -195,7 +180,7 @@ export default function App() {
       {/* Global Audio Toggle Button */}
       <button
         onClick={toggleMute}
-        className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-cyan-200 hover:text-white shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all active:scale-90"
+        className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-sm border border-white/10 text-white/60 hover:text-white/90 transition-all active:scale-90"
         title={isMuted ? "Unmute Music" : "Mute Music"}
       >
         {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
@@ -204,7 +189,6 @@ export default function App() {
       {/* PHASE 1: Access Gate Page */}
       {currentPhase === "gate" && (
         <AccessGatePage
-          isBoxOpened={isBoxOpened}
           onBoxOpen={handleBoxOpen}
         />
       )}
@@ -221,36 +205,22 @@ export default function App() {
       {/* PHASE 3: 3D Frozen Alpine Graphics Scene */}
       {currentPhase === "3d" && (
         <div className="relative w-screen h-screen overflow-hidden">
-          {/* Top Control Bar in 3D Mode */}
-          <div className="absolute top-4 left-4 z-40 flex items-center gap-2 pointer-events-auto">
-            <button
-              onClick={resetToGate}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/20 text-xs font-semibold text-cyan-200 transition-all active:scale-95"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Restart Experience</span>
-            </button>
-            <LauncherBalloons buttonText="Balloons 🎈" className="scale-90 origin-left" />
-          </div>
-
           {/* Candle Blow Hint Overlay */}
           {hasAnimationCompleted && isCandleLit && (
             <div
-              className="hint-overlay flex items-center gap-2 px-6 py-3 rounded-full bg-black/60 backdrop-blur-md border border-cyan-400/30 text-cyan-100 shadow-[0_0_30px_rgba(124,199,251,0.4)] transition-all hover:scale-105 active:scale-95"
+              className="hint-overlay"
               onClick={blowOutCandle}
             >
-              <Sparkles className="w-5 h-5 text-amber-300 animate-spin" style={{ animationDuration: "5s" }} />
-              <span className="text-xs md:text-sm tracking-widest font-semibold uppercase">
-                Press Space or Click to Blow the Candle 🎂
+              <span className="text-xs md:text-sm tracking-widest font-medium uppercase">
+                Press Space or Click to Blow the Candle
               </span>
-              <Sparkles className="w-5 h-5 text-amber-300 animate-spin" style={{ animationDuration: "5s" }} />
             </div>
           )}
 
           {/* 3D WebGL Canvas */}
           <Canvas
             gl={{ alpha: true, antialias: true }}
-            camera={{ position: [0, 1.1, 3.2], fov: 45 }}
+            camera={{ position: [0, 1.6, 5.0], fov: 40 }}
             style={{ background: "transparent" }}
             onCreated={({ gl }) => {
               gl.setClearColor("#000000", 0);

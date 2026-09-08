@@ -1,7 +1,5 @@
 import React, { useRef } from "react";
 import { Balloons, type BalloonsHandle } from "./ui/balloons";
-import { Button } from "./ui/button";
-import { Sparkles } from "lucide-react";
 
 interface LauncherBalloonsProps {
   onLaunch?: () => void;
@@ -12,7 +10,7 @@ interface LauncherBalloonsProps {
 export const LauncherBalloons: React.FC<LauncherBalloonsProps> = ({
   onLaunch,
   className = "",
-  buttonText = "Release Birthday Balloons! 🎈",
+  buttonText = "Launch Birthday Balloons",
 }) => {
   const balloonsRef = useRef<BalloonsHandle>(null);
 
@@ -27,15 +25,12 @@ export const LauncherBalloons: React.FC<LauncherBalloonsProps> = ({
 
   return (
     <div className={`relative inline-flex items-center gap-3 ${className}`}>
-      <Button
+      <button
         onClick={handleLaunch}
-        variant="frozen"
-        size="lg"
-        className="group shadow-[0_0_25px_rgba(124,199,251,0.4)] hover:shadow-[0_0_35px_rgba(124,199,251,0.7)] font-semibold tracking-wide"
+        className="px-8 py-3.5 rounded-xl text-sm md:text-base font-medium tracking-wide text-white bg-white/[0.06] hover:bg-white/[0.10] border border-white/[0.12] hover:border-white/[0.20] backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer select-none"
       >
-        <Sparkles className="w-5 h-5 mr-2 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
         {buttonText}
-      </Button>
+      </button>
       <Balloons ref={balloonsRef} type="default" />
     </div>
   );
